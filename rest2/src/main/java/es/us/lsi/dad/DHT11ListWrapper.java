@@ -25,6 +25,10 @@ public class DHT11ListWrapper {
 	public void setSensoresList(List<DHT11> sensoresList) {
 		this.sensoresList = sensoresList;
 	}
+	
+	public void addSensor(DHT11 e) {
+		this.sensoresList.add(e);
+	}
 
 	@Override
 	public String toString() {

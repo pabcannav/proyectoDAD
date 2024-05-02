@@ -1,8 +1,10 @@
 package es.us.lsi.dad;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.google.gson.Gson;
@@ -15,10 +17,10 @@ import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
 
 public class RestServerEntregable extends AbstractVerticle {
-	private Map<Integer,DHT11> sensores = new HashMap<>();
-	private Map<Integer,Rele> actuadores = new HashMap<>();
+	private Map<Integer, DHT11> sensores = new HashMap<>();
+	private Map<Integer, Rele> actuadores = new HashMap<>();
 	private Gson gson;
-	
+
 	public void start(Promise<Void> startFuture) {
 		// Creating some synthetic data
 		createSomeData(25);
@@ -47,13 +49,18 @@ public class RestServerEntregable extends AbstractVerticle {
 //		router.delete("/api/users/:userid").handler(this::deleteOne);
 //		router.put("/api/users/:userid").handler(this::putOne);
 		router.route("/api/sensores*").handler(BodyHandler.create());
+//		router.route("/api/sensores/allParam").handler(BodyHandler.create());
 		router.get("/api/sensores").handler(this::getAllSensores);
+		router.get("/api/sensores/:sensorid").handler(this::getOneSensor);
+		router.get("/api/sensores/allParam").handler(this::getAllWithParamsSensor);
 		router.post("/api/sensores").handler(this::addOneSensor);
 		router.delete("/api/sensores/:sensorid").handler(this::deleteOneSensor);
 		router.put("/api/sensores/:sensorid").handler(this::putOneSensor);
-		
+
 		router.route("/api/actuadores*").handler(BodyHandler.create());
 		router.get("/api/actuadores").handler(this::getAllActuadores);
+		router.get("/api/actuadores/:actuadorid").handler(this::getOneActuador);
+		router.get("/api/actuadores/allParam").handler(this::getAllWithParamsActuador);
 		router.post("/api/actuadores").handler(this::addOneActuador);
 		router.delete("/api/actuadores/:actuadorid").handler(this::deleteOneActuador);
 		router.put("/api/actuadores/:actuadorid").handler(this::putOneActuador);
@@ -63,9 +70,46 @@ public class RestServerEntregable extends AbstractVerticle {
 		routingContext.response().putHeader("content-type", "application/json; charset=utf-8").setStatusCode(200)
 				.end(gson.toJson(new DHT11ListWrapper(sensores.values())));
 	}
+
 	private void getAllActuadores(RoutingContext routingContext) {
 		routingContext.response().putHeader("content-type", "application/json; charset=utf-8").setStatusCode(200)
 				.end(gson.toJson(new ReleListWrapper(actuadores.values())));
+	}
+
+	private void getAllWithParamsSensor(RoutingContext routingContext) {
+//		final String sensorid = routingContext.queryParams().contains("sensorid")
+//				? routingContext.queryParam("sensorid").get(0)
+//				: null;
+//		final String groupid = routingContext.queryParams().contains("groupid")
+//				? routingContext.queryParam("groupid").get(0)
+//				: null;
+//		routingContext.response().putHeader("content-type", "application/json; charset=utf-8").setStatusCode(200)
+//		.end(gson.toJson(new DHT11ListWrapper(sensores.values().stream().filter(elem -> {
+//			boolean res = true;
+//			res = res && sensorid != null ? elem.getIdSensor().equals(Integer.parseInt(sensorid)) : true;
+//			res = res && groupid != null ? elem.getIdGroup().equals(Integer.parseInt(groupid)) : true;
+//			return res;
+//		}).collect(Collectors.toList()))));
+		
+		routingContext.response().putHeader("content-type", "application/json; charset=utf-8").setStatusCode(200)
+		.end(gson.toJson(new DHT11ListWrapper(sensores.values())));
+	}
+
+	private void getAllWithParamsActuador(RoutingContext routingContext) {
+		final String actuadorid = routingContext.queryParams().contains("actuadorid")
+				? routingContext.queryParam("actuadorid").get(0)
+				: null;
+		final String groupid = routingContext.queryParams().contains("groupid")
+				? routingContext.queryParam("groupid").get(0)
+				: null;
+
+		routingContext.response().putHeader("content-type", "application/json; charset=utf-8").setStatusCode(200)
+				.end(gson.toJson(new ReleListWrapper(actuadores.values().stream().filter(elem -> {
+					boolean res = true;
+					res = res && actuadorid != null ? elem.getIdActuador().equals(Integer.parseInt(actuadorid)) : true;
+					res = res && groupid != null ? elem.getIdGroup().equals(Integer.parseInt(groupid)) : true;
+					return res;
+				}).collect(Collectors.toList()))));
 	}
 
 //	private void getAllWithParams(RoutingContext routingContext) {
@@ -95,7 +139,6 @@ public class RestServerEntregable extends AbstractVerticle {
 		}
 	}
 
-
 	private void getOneActuador(RoutingContext routingContext) {
 		int id = Integer.parseInt(routingContext.request().getParam("actuadorid"));
 		if (sensores.containsKey(id)) {
@@ -114,13 +157,14 @@ public class RestServerEntregable extends AbstractVerticle {
 		routingContext.response().setStatusCode(201).putHeader("content-type", "application/json; charset=utf-8")
 				.end(gson.toJson(sensor));
 	}
-	
+
 	private void addOneActuador(RoutingContext routingContext) {
 		final Rele actuador = gson.fromJson(routingContext.getBodyAsString(), Rele.class);
 		actuadores.put(actuador.getIdActuador(), actuador);
 		routingContext.response().setStatusCode(201).putHeader("content-type", "application/json; charset=utf-8")
 				.end(gson.toJson(actuador));
 	}
+
 //
 	private void deleteOneSensor(RoutingContext routingContext) {
 		int id = Integer.parseInt(routingContext.request().getParam("sensorid"));
@@ -128,20 +172,20 @@ public class RestServerEntregable extends AbstractVerticle {
 			DHT11 sensor = sensores.get(id);
 			sensores.remove(id);
 			routingContext.response().setStatusCode(200).putHeader("content-type", "application/json; charset=utf-8")
-					.end(gson.toJson(sensores));
+					.end(gson.toJson(sensor));
 		} else {
 			routingContext.response().setStatusCode(204).putHeader("content-type", "application/json; charset=utf-8")
 					.end();
 		}
 	}
-	
+
 	private void deleteOneActuador(RoutingContext routingContext) {
 		int id = Integer.parseInt(routingContext.request().getParam("actuadorid"));
 		if (sensores.containsKey(id)) {
 			Rele actuador = actuadores.get(id);
 			actuadores.remove(id);
 			routingContext.response().setStatusCode(200).putHeader("content-type", "application/json; charset=utf-8")
-					.end(gson.toJson(actuadores));
+					.end(gson.toJson(actuador));
 		} else {
 			routingContext.response().setStatusCode(204).putHeader("content-type", "application/json; charset=utf-8")
 					.end();
@@ -163,7 +207,7 @@ public class RestServerEntregable extends AbstractVerticle {
 		routingContext.response().setStatusCode(201).putHeader("content-type", "application/json; charset=utf-8")
 				.end(gson.toJson(element));
 	}
-	
+
 	private void putOneActuador(RoutingContext routingContext) {
 		int id = Integer.parseInt(routingContext.request().getParam("actuadorid"));
 		Rele ds = actuadores.get(id);
@@ -185,8 +229,8 @@ public class RestServerEntregable extends AbstractVerticle {
 			int id = rnd.nextInt();
 //			users.put(id, new UserEntity(id, "Nombre_" + id, "Apellido_" + id,
 //					new Date(Calendar.getInstance().getTimeInMillis() + id), "Username_" + id, "Password_" + id));
-			sensores.put(id, new DHT11(id, id+1, id+10d, id+15d));
-			actuadores.put(id, new Rele(id, id+1, id%2==0?true:false));
+			sensores.put(id, new DHT11(id, id + 1, id + 10d, id + 15d));
+			actuadores.put(id, new Rele(id, id + 1, id % 2 == 0 ? true : false));
 		});
 	}
 }
