@@ -2,12 +2,22 @@
 #include "ArduinoJson.h"
 #include <WiFiUdp.h>
 #include <PubSubClient.h>
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
+
+#define DHTTYPE DHT11
 
 // Replace 0 by ID of this current device
 const int DEVICE_ID = 1;
 const int ID_SENSOR = 1;
 const int ID_ACTUADOR = 1;
 const int ID_GROUP = 1;
+
+const int relayPin = 15;
+const int dht11Pin = 13;
+
+DHT dht(dht11Pin, DHTTYPE);
 
 int test_delay = 1000; // so we don't spam the API
 boolean describe_tests = true;
@@ -31,98 +41,7 @@ const char *MQTT_BROKER_ADRESS = "192.168.1.38";
 const uint16_t MQTT_PORT = 1883;
 
 // Name for this MQTT client
-const char *MQTT_CLIENT_NAME = "ArduinoClient_1";
-
-// callback a ejecutar cuando se recibe un mensaje
-// en este ejemplo, muestra por serial el mensaje recibido
-void OnMqttReceived(char *topic, byte *payload, unsigned int length)
-{
-  Serial.print("Received on ");
-  Serial.print(topic);
-  Serial.print(": ");
-
-  String content = "";
-  for (size_t i = 0; i < length; i++)
-  {
-    content.concat((char)payload[i]);
-  }
-  Serial.print(content);
-  Serial.println();
-}
-
-// inicia la comunicacion MQTT
-// inicia establece el servidor y el callback al recibir un mensaje
-void InitMqtt()
-{
-  client.setServer(MQTT_BROKER_ADRESS, MQTT_PORT);
-  client.setCallback(OnMqttReceived);
-}
-
-
-
-
-// Setup
-void setup()
-{
-  Serial.begin(9600);
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(STASSID);
-
-  /* Explicitly set the ESP32 to be a WiFi-client, otherwise, it by default,
-     would try to act as both a client and an access-point and could cause
-     network-issues with your other WiFi-devices on your WiFi-network. */
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(STASSID, STAPSK);
-
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-
-  //InitMqtt();
-
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-  Serial.println("Setup!");
-}
-
-// conecta o reconecta al MQTT
-// consigue conectar -> suscribe a topic y publica un mensaje
-// no -> espera 5 segundos
-void ConnectMqtt()
-{
-  Serial.print("Starting MQTT connection...");
-  if (client.connect(MQTT_CLIENT_NAME))
-  {
-    client.subscribe("hello/world");
-    client.publish("hello/world", "connected");
-  }
-  else
-  {
-    Serial.print("Failed MQTT connection, rc=");
-    Serial.print(client.state());
-    Serial.println(" try again in 5 seconds");
-
-    delay(5000);
-  }
-}
-
-// gestiona la comunicación MQTT
-// comprueba que el cliente está conectado
-// no -> intenta reconectar
-// si -> llama al MQTT loop
-void HandleMqtt()
-{
-  if (!client.connected())
-  {
-    ConnectMqtt();
-  }
-  client.loop();
-}
+const char *MQTT_CLIENT_NAME = "ArduinoClient_"+DEVICE_ID;
 
 String response;
 
@@ -454,17 +373,165 @@ void PUT_tests(){
   test_response(http.PUT(sensor_value_body));
 }
 
+void postOneSensor (String serializado){
+  String serverPath = serverName + "api/sensores";
+  http.begin(serverPath.c_str());
+  test_response(http.POST(serializado));
+}
+
+void postOneActuador(String serializado){
+  String serverPath = serverName + "api/actuadores";
+  http.begin(serverPath.c_str());
+  test_response(http.POST(serializado));
+}
+
+void putOneActuador(String serializado){
+  String serverPath = serverName + "api/actuadores";
+  http.begin(serverPath.c_str());
+  test_response(http.PUT(serializado));
+}
+
+// callback a ejecutar cuando se recibe un mensaje
+// en este ejemplo, muestra por serial el mensaje recibido
+void OnMqttReceived(char *topic, byte *payload, unsigned int length)
+{
+   Serial.print("Received on ");
+  Serial.print(topic);
+  Serial.print(": ");
+  String content = "";
+  for (size_t i = 0; i < length; i++) {
+    content.concat((char)payload[i]);
+  }
+  Serial.print(content);
+  Serial.println();
+
+  // Parsear el mensaje recibido
+  DynamicJsonDocument doc(2048);
+  deserializeJson(doc, content);
+  int idActuador = doc["idActuador"];
+  int idGroup = doc["idGroup"];
+  bool activo = doc["activo"];
+  
+  if (activo) {
+    digitalWrite(relayPin, HIGH);
+    putOneActuador(serializeActuatorStatusBody(idActuador,idGroup,activo)); //Actualizamos el valor en la base de datos con un put, para no inundar de registros
+  } else {
+    digitalWrite(relayPin, LOW);
+    putOneActuador(serializeActuatorStatusBody(idActuador,idGroup,activo));
+  }
+}
+
+// inicia la comunicacion MQTT
+// inicia establece el servidor y el callback al recibir un mensaje
+void InitMqtt()
+{
+  client.setServer(MQTT_BROKER_ADRESS, MQTT_PORT);
+  client.setCallback(OnMqttReceived);
+}
+
+
+
+
+// Setup
+void setup()
+{
+  Serial.begin(9600);
+  Serial.println();
+  Serial.print("Connecting to ");
+  Serial.println(STASSID);
+
+  /* Explicitly set the ESP32 to be a WiFi-client, otherwise, it by default,
+     would try to act as both a client and an access-point and could cause
+     network-issues with your other WiFi-devices on your WiFi-network. */
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(STASSID, STAPSK);
+
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+  }
+
+  InitMqtt();
+
+  Serial.println("");
+  Serial.println("WiFi connected");
+  Serial.println("IP address: ");
+  Serial.println(WiFi.localIP());
+  Serial.println("Setup!");
+
+  pinMode(relayPin,OUTPUT); //Salida digital del relé
+  pinMode(dht11Pin,INPUT);  //Entrada digital del dht11
+  dht.begin();
+  postOneSensor(serializeSensorValueBody(ID_SENSOR,ID_GROUP,55.0,25.0));
+  postOneActuador(serializeActuatorStatusBody(ID_ACTUADOR,ID_GROUP,false));
+}
+
+// conecta o reconecta al MQTT
+// consigue conectar -> suscribe a topic y publica un mensaje
+// no -> espera 5 segundos
+void ConnectMqtt()
+{
+  Serial.print("Starting MQTT connection...");
+  if (client.connect(MQTT_CLIENT_NAME)) {
+    client.subscribe("instrucciones/rele");
+    client.publish("estado/esp32", "connected");
+  } else {
+    Serial.print("Failed MQTT connection, rc=");
+    Serial.print(client.state());
+    Serial.println(" try again in 5 seconds");
+    delay(5000);
+  }
+}
+
+// gestiona la comunicación MQTT
+// comprueba que el cliente está conectado
+// no -> intenta reconectar
+// si -> llama al MQTT loop
+void HandleMqtt()
+{
+  if (!client.connected())
+  {
+    ConnectMqtt();
+  }
+  client.loop();
+}
+
+
+
 // Run the tests!
 void loop()
 {
-  GET_tests();
-  sleep(10);
-  POST_tests();
-  sleep(10);
-  DELETE_tests();
-  sleep(10);
-  PUT_tests();
-  sleep(10);
+  // GET_tests();
+  // sleep(10);
+  // POST_tests();
+  // sleep(10);
+  // DELETE_tests();
+  // sleep(10);
+  // PUT_tests();
+  // sleep(10);
 
-  //HandleMqtt();
+  HandleMqtt();
+
+  double humedad = dht.readHumidity();
+  double temperatura = dht.readTemperature();
+
+  if (isnan(humedad) || isnan(temperatura)) {
+    Serial.println(F("Failed to read from DHT sensor!"));
+    return;
+  }
+
+  // Publicar datos del sensor
+  DynamicJsonDocument doc(2048);
+  doc["idSensor"] = ID_SENSOR;
+  doc["idGroup"] = ID_GROUP;
+  doc["temperatura"] = temperatura;
+  doc["humedad"] = humedad;
+
+  String output;
+  serializeJson(doc, output);
+  client.publish("datos/sensor", output.c_str());
+  postOneSensor(output); //Subo también los datos del sensor a la base de datos.
+
+  delay(4000);  // Esperar 10 segundos antes de volver a leer el sensor
 }
