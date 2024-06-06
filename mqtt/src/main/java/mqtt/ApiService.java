@@ -27,7 +27,7 @@ public class ApiService {
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() == 200) {
-            return gson.fromJson(response.body(), DHT11.class);
+            return gson.fromJson(response.body().replace("[", "").replace("]", ""), DHT11.class);
         } else {
             throw new RuntimeException("Error al obtener el sensor: " + response.body());
         }
@@ -41,7 +41,7 @@ public class ApiService {
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() == 200) {
-            return gson.fromJson(response.body(), DHT11.class);
+            return gson.fromJson(response.body().replace("[", "").replace("]", ""), DHT11.class);
         } else {
             throw new RuntimeException("Error al obtener el sensor: " + response.body());
         }
@@ -55,13 +55,14 @@ public class ApiService {
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() == 200) {
-            return gson.fromJson(response.body(), Rele.class);
+            return gson.fromJson(response.body().replace("[", "").replace("]", ""), Rele.class);
         } else {
             throw new RuntimeException("Error al obtener el actuador: " + response.body());
         }
     }
     
     public Rele getActuadorByIdGroup(int groupId) throws Exception {
+    	Rele res = null;
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(BASE_URL + "/actuadores/grupo/" + groupId))
                 .GET()
@@ -69,10 +70,14 @@ public class ApiService {
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() == 200) {
-            return gson.fromJson(response.body(), Rele.class);
-        } else {
-            throw new RuntimeException("Error al obtener el actuador: " + response.body());
-        }
+            res = gson.fromJson(response.body().replace("[", "").replace("]", ""), Rele.class); 
+//            como devuelve una lista de json, pero solo hay un elemento por la condición de la petición que estoy haciendo
+//            hago los replaces para quedarme con el objeto y así gson pueda formatearlo correctamente
+            
+        }else {
+        	throw new RuntimeException("Error al obtener el actuador: " + response.body());
+		}
+        return res;
     }
 
     public void postSensor(DHT11 sensor) throws Exception {

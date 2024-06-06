@@ -533,5 +533,5 @@ void loop()
   client.publish("datos/sensor", output.c_str());
   postOneSensor(output); //Subo también los datos del sensor a la base de datos.
 
-  delay(4000);  // Esperar 10 segundos antes de volver a leer el sensor
+  delay(3000);  
 }
